@@ -1,0 +1,183 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum LeagueType {
+  PUBLIC
+  PRIVATE
+}
+
+enum LeagueStatus {
+  OPEN
+  IN_PROGRESS
+  FINISHED
+}
+
+enum MembershipStatus {
+  ACTIVE
+  ELIMINATED
+  WINNER
+}
+
+enum RoundStatus {
+  SCHEDULED
+  OPEN
+  CLOSED
+  SETTLED
+}
+
+enum MatchStatus {
+  SCHEDULED
+  LIVE
+  FINISHED
+  POSTPONED
+}
+
+enum PickResult {
+  PENDING
+  WIN
+  OUT
+}
+
+enum PaymentProviderType {
+  MOCK
+  STRIPE
+  PAYPAL
+}
+
+enum PaymentStatus {
+  SUCCEEDED
+  FAILED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  isSiteAdmin  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  memberships   Membership[]
+  hostedLeagues League[]     @relation("LeagueHost")
+  payments      Payment[]
+}
+
+model Team {
+  id         String  @id @default(cuid())
+  name       String
+  shortName  String
+  externalId String? @unique
+  logoUrl    String?
+
+  homeMatches Match[] @relation("HomeTeam")
+  awayMatches Match[] @relation("AwayTeam")
+  wonMatches  Match[] @relation("WinnerTeam")
+  picks       Pick[]
+}
+
+model Season {
+  id    String @id @default(cuid())
+  year  Int
+  label String
+
+  rounds  Round[]
+  leagues League[]
+}
+
+model Round {
+  id       String      @id @default(cuid())
+  seasonId String
+  season   Season      @relation(fields: [seasonId], references: [id])
+  number   Int
+  deadline DateTime
+  status   RoundStatus @default(SCHEDULED)
+
+  matches Match[]
+  picks   Pick[]
+
+  @@unique([seasonId, number])
+}
+
+model Match {
+  id         String      @id @default(cuid())
+  roundId    String
+  round      Round       @relation(fields: [roundId], references: [id])
+  homeTeamId String
+  homeTeam   Team        @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeamId String
+  awayTeam   Team        @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  externalId String?     @unique
+  status     MatchStatus @default(SCHEDULED)
+  homeScore  Int?
+  awayScore  Int?
+  winnerTeamId String?
+  winnerTeam Team?       @relation("WinnerTeam", fields: [winnerTeamId], references: [id])
+  isDraw     Boolean     @default(false)
+}
+
+model League {
+  id               String       @id @default(cuid())
+  name             String
+  type             LeagueType
+  inviteCode       String?      @unique
+  hostId           String?
+  host             User?        @relation("LeagueHost", fields: [hostId], references: [id])
+  seasonId         String
+  season           Season       @relation(fields: [seasonId], references: [id])
+  entryFee         Decimal      @default(1.0) @db.Decimal(10, 2)
+  status           LeagueStatus @default(OPEN)
+  startRoundNumber Int          @default(1)
+  createdAt        DateTime     @default(now())
+
+  memberships Membership[]
+  payments    Payment[]
+}
+
+model Membership {
+  id                String            @id @default(cuid())
+  userId            String
+  user              User              @relation(fields: [userId], references: [id])
+  leagueId          String
+  league            League            @relation(fields: [leagueId], references: [id])
+  paid              Boolean           @default(false)
+  status            MembershipStatus  @default(ACTIVE)
+  eliminatedRoundId String?
+  joinedAt          DateTime          @default(now())
+
+  picks Pick[]
+
+  @@unique([userId, leagueId])
+}
+
+model Pick {
+  id           String     @id @default(cuid())
+  membershipId String
+  membership   Membership @relation(fields: [membershipId], references: [id])
+  roundId      String
+  round        Round      @relation(fields: [roundId], references: [id])
+  teamId       String
+  team         Team       @relation(fields: [teamId], references: [id])
+  result       PickResult @default(PENDING)
+  createdAt    DateTime   @default(now())
+
+  @@unique([membershipId, roundId])
+  @@unique([membershipId, teamId])
+}
+
+model Payment {
+  id        String              @id @default(cuid())
+  userId    String
+  user      User                @relation(fields: [userId], references: [id])
+  leagueId  String
+  league    League              @relation(fields: [leagueId], references: [id])
+  amount    Decimal             @db.Decimal(10, 2)
+  provider  PaymentProviderType @default(MOCK)
+  status    PaymentStatus       @default(SUCCEEDED)
+  createdAt DateTime            @default(now())
+}
