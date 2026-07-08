@@ -1,8 +1,9 @@
 import { PrismaClient } from "../app/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
+import { resolveDatabaseUrl } from "../lib/db-url";
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const adapter = new PrismaPg({ connectionString: resolveDatabaseUrl() });
 const prisma = new PrismaClient({ adapter });
 
 const SERIE_A_TEAMS = [
